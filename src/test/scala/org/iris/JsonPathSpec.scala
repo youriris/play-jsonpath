@@ -68,16 +68,23 @@ class JsonPathSpec extends PlaySpec {
             store.book(?(%.price > 100)).title.asOpt[String].isDefined mustBe false
             store.book(?(%.price < 100)).title.asOpt[String].isDefined mustBe true
             store.book(?(%.price > 8.95)).title.as[String] mustBe "Sword of Honour"
+            // sorry, no == override for scala
             store.book(?(%.ratings.klass -> "PR")).title.as[String] mustBe "Moby Dick"
             store.book(?(%.published > new DateTime(2016, 1, 1, 0, 0))).title.as[String] mustBe "Moby Dick"
         }
         "work for a filter on js object" in {
+            // bicycle is not an array but a map
             store.bicycle(?(%.color -> "blue")).price.as[Double] mustBe 21.95
         }
         "allow extraction" in {
+            store.book(?(%.price > 100)).title.lookupResult match {
+                case _: JsUndefined =>
+                case JsDefined(value) => fail
+            }
+            //shortcut
             store.book(?(%.price > 100)).title match {
                 case _: JpUndefined =>
-                case JpDefined(value) => fail
+                case JpDefined(value) => fail // value is a JsValue
             }
         }
         "allow getOrElse" in {
