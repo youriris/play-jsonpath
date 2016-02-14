@@ -68,11 +68,11 @@ class JsonPathSpec extends PlaySpec {
             store.book(?(%.price > 100)).title.asOpt[String].isDefined mustBe false
             store.book(?(%.price < 100)).title.asOpt[String].isDefined mustBe true
             store.book(?(%.price > 8.95)).title.as[String] mustBe "Sword of Honour"
-            store.book(?(%.ratings.klass == "PR")).title.as[String] mustBe "Moby Dick"
+            store.book(?(%.ratings.klass -> "PR")).title.as[String] mustBe "Moby Dick"
             store.book(?(%.published > new DateTime(2016, 1, 1, 0, 0))).title.as[String] mustBe "Moby Dick"
         }
         "work for a filter on js object" in {
-            store.bicycle(?(%.color == "blue")).price.as[Double] mustBe 21.95
+            store.bicycle(?(%.color -> "blue")).price.as[Double] mustBe 21.95
         }
         "allow extraction" in {
             store.book(?(%.price > 100)).title match {
@@ -99,8 +99,10 @@ class JsonPathSpec extends PlaySpec {
             store.book(?(%.price >= 9)).title.as[String] mustBe "Sword of Honour"
             store.book(*(%.price >= 9)).title.as[List[String]] mustBe List("Sword of Honour", "The Lord of the Rings")
             store.book(*(%.price <= 100)).title.as[List[String]].size mustBe 4
-            // TODO fix this
-            // store.book(*(%.category != "reference")).title.as[List[String]].size mustBe 3
+            store.book(*(%.category <> "reference")).title.as[List[String]].size mustBe 3
+            
+            store.book(*(%.category -> "fiction" && %.price <= 20)).title.as[List[String]] mustBe List("Sword of Honour","Moby Dick")
+            store.book(*(%.category -> "fiction" || %.category -> "reference")).title.as[Set[String]] mustBe Set("Moby Dick", "Sword of Honour", "The Lord of the Rings", "Sayings of the Century")
         }
     }
 }

@@ -94,37 +94,37 @@ object JsonPath {
   	    def apply(filter: JpPathFilter) = path.apply(key).apply(filter)
   	}
   	
-  	protected abstract class JpExpression {
-  	    def <(r: JpExpression) = new JpBinaryExpression(this, r) {
-            override def _evaluate[T: Ordering](l: T, r: T) = compare(l, r) < 0
-        }
-  	    
-  	    def <=(r: JpExpression) = new JpBinaryExpression(this, r) {
-            override def _evaluate[T: Ordering](l: T, r: T) = compare(l, r) <= 0
-        }
-  	    
-  	    def >(r: JpExpression) = new JpBinaryExpression(this, r) {
-            override def _evaluate[T: Ordering](l: T, r: T) = compare(l, r) > 0
-        }
-  	    
-  	    def >=(r: JpExpression) = new JpBinaryExpression(this, r) {
-            override def _evaluate[T: Ordering](l: T, r: T) = compare(l, r) >= 0
-        }
-  	    
-  	    def ==(r: JpExpression) = new JpBinaryExpression(this, r) {
-            override def _evaluate[T: Ordering](l: T, r: T) = compare(l, r) == 0
-        }
-  	    
-  	    def !=(r: JpExpression) = new JpBinaryExpression(this, r) {
-            override def _evaluate[T: Ordering](l: T, r: T) = compare(l, r) != 0
-        }
+  	abstract class JpExpression {
+  	    def &&(r: JpExpression) = new JpAndExpression(this, r)
+  	    def ||(r: JpExpression) = new JpOrExpression(this, r)
   	    
   	    def evaluate(filter: JpPathFilter, path: DynaJson)(implicit PathNaming: PathNaming): Any
   	}
   	
-  	protected abstract class JpBinaryExpression(l: JpExpression, r: JpExpression) extends JpExpression {
-  	    val mirror = runtimeMirror(getClass.getClassLoader)
-  	    
+  	protected class JpAndExpression(l: JpExpression, r: JpExpression) extends JpExpression {
+  	    def evaluate(filter: JpPathFilter, path: DynaJson)(implicit PathNaming: PathNaming) = {
+  	        val lKeys = l.evaluate(filter, path).asInstanceOf[Seq[JpPathResult]].map { result =>
+  	            result.key
+  	        }.toSet
+  	        r.evaluate(filter, path).asInstanceOf[Seq[JpPathResult]].filter{result =>
+  	            lKeys.contains(result.key)
+  	        }
+  	    }
+  	}
+  	
+  	protected class JpOrExpression(l: JpExpression, r: JpExpression) extends JpExpression {
+  	    def evaluate(filter: JpPathFilter, path: DynaJson)(implicit PathNaming: PathNaming) = {
+  	        val all = scala.collection.mutable.Map[Any, JpPathResult]()
+  	        (l.evaluate(filter, path).asInstanceOf[Seq[JpPathResult]] ++ r.evaluate(filter, path).asInstanceOf[Seq[JpPathResult]]).foreach { result =>
+  	            all += result.key -> result
+  	        }
+  	        all.map(e => e._2)
+  	    }
+  	}
+  	
+  	case class JpBinaryResult(key: Any, doc: JsValue, result: Boolean)
+
+  	abstract class JpBinaryExpression(l: JpExpression, r: JpExpression) extends JpExpression {
   	    def evaluate(filter: JpPathFilter, path: DynaJson)(implicit PathNaming: PathNaming) = {
   	        val toStringOrDouble = (v: Any) => v match {
   	            case i: Int => i.toDouble
@@ -148,10 +148,10 @@ object JsonPath {
                 }
             }
   	        
-  	        val result = l match {
+  	        l match {
   	            case selection: JpPathExpression => 
-  	                selection.evaluate(filter, path).asInstanceOf[Map[Any, JsObject]].filter{ c =>
-              	        val (lvalue, rvalue) = normalize(toStringOrDouble(c._1), toStringOrDouble(r.evaluate(filter, path)))
+  	                selection.evaluate(filter, path).asInstanceOf[Seq[JpPathResult]].filter{ result =>
+              	        val (lvalue, rvalue) = normalize(toStringOrDouble(result.result), toStringOrDouble(r.evaluate(filter, path)))
               	        
               	        rvalue match {
               	            case rvalue: Double => 
@@ -159,16 +159,7 @@ object JsonPath {
                   	        case rvalue: String => 
                   	            _evaluate[String](lvalue.asInstanceOf[String], rvalue.asInstanceOf[String])
               	        }
-  	                }.map{ c => c._2 }
-  	        }
-  	        
-  	        filter match {
-  	            case _: JpListFilter => result
-  	            case _ =>
-          	        new DynaJson(result.headOption match {
-          	            case Some(r) => new JsDefined(r)
-          	            case None => new JsUndefined("")
-          	        })
+  	                }
   	        }
   	    }
   	    
@@ -181,7 +172,33 @@ object JsonPath {
   	    def evaluate(filter: JpPathFilter, path: DynaJson)(implicit PathNaming: PathNaming) = v
   	}
   	
+  	protected case class JpPathResult(key: Any, doc: JsValue, result: JsValue)
+  	
   	protected class JpPathExpression(paths: Either[String, Int]*) extends JpExpression with Dynamic {
+  	    def <(r: JpExpression) = new JpBinaryExpression(this, r) {
+            override def _evaluate[T: Ordering](l: T, r: T) = compare(l, r) < 0
+        }
+  	    
+  	    def <=(r: JpExpression) = new JpBinaryExpression(this, r) {
+            override def _evaluate[T: Ordering](l: T, r: T) = compare(l, r) <= 0
+        }
+  	    
+  	    def >(r: JpExpression) = new JpBinaryExpression(this, r) {
+            override def _evaluate[T: Ordering](l: T, r: T) = compare(l, r) > 0
+        }
+  	    
+  	    def >=(r: JpExpression) = new JpBinaryExpression(this, r) {
+            override def _evaluate[T: Ordering](l: T, r: T) = compare(l, r) >= 0
+        }
+  	    
+  	    def ->(r: JpExpression) = new JpBinaryExpression(this, r) {
+            override def _evaluate[T: Ordering](l: T, r: T) = compare(l, r) == 0
+        }
+
+  	    def <>(r: JpExpression) = new JpBinaryExpression(this, r) {
+            override def _evaluate[T: Ordering](l: T, r: T) = compare(l, r) != 0
+        }
+
   	    def selectDynamic(path: String) = apply(path)
   	    
   	    def applyDynamic(path: String)(index: Int) = apply(path).apply(index)
@@ -196,25 +213,25 @@ object JsonPath {
   	        doc.lookupResult match {
   	            case JsDefined(jsValue) =>
   	                val values = jsValue match {
-  	                    case a: JsArray => a.value
-  	                    case m: JsObject => m.values
-  	                    case v => Seq(v) 
+  	                    case a: JsArray => a.value.zipWithIndex.view.map {v => (v._2, v._1)}.toSet
+  	                    case m: JsObject => m.fieldSet.asInstanceOf[Set[(String, JsValue)]]
+  	                    case v => Set((null, v))
   	                }
-              	    values.map { o => 
-      	                var node = new DynaJson(new JsDefined(o))
+              	    values.map { row => 
+      	                var node = new DynaJson(new JsDefined(row._2))
       	                paths.foreach{ path =>
       	                    node = path match {
       	                        case Left(s) => node.apply(s)
       	                        case Right(i) => node.apply(i)
       	                    }
       	                }
-      	                node.lookupResult -> o
-  	                }.filter { resultToJsObj =>
-          	            resultToJsObj._1.isInstanceOf[JsDefined]
-          	        }.map { resultToJsObj =>
-          	            resultToJsObj._1.get -> resultToJsObj._2
-          	        }.toMap
-  	            case _: JsUndefined => Map.empty
+      	                (row, node.lookupResult)
+  	                }.filter { result =>
+          	            result._2.isInstanceOf[JsDefined]
+          	        }.map{ result =>
+          	            JpPathResult(result._1._1, result._1._2, result._2.get)
+          	        }.toSeq
+  	            case _: JsUndefined => Seq.empty
   	        }
   	    }
   	}
@@ -231,7 +248,7 @@ object JsonPath {
   	                val v = m.map{ e => e._2.asInstanceOf[JsValue] }.toSeq
   	                new DynaJson(JsArray(v))
   	            case a: Seq[_] =>
-  	                val v = a.map{ e => e.asInstanceOf[JsValue] }.toSeq
+  	                val v = a.map{ e => e.asInstanceOf[JpPathResult].doc }.toSeq
   	                new DynaJson(JsArray(v))
   	        }
   	    }
@@ -257,9 +274,9 @@ object JsonPath {
   	        val r = e.evaluate(this, path) 
   	        r match {
   	            case doc: DynaJson => doc
-  	            case m: Map[_, _] => 
+  	            case m: Seq[_] => 
   	                val v = m.headOption match {
-      	                case Some(e) => JsDefined(e._2.asInstanceOf[JsValue])
+      	                case Some(e) => JsDefined(e.asInstanceOf[JpPathResult].doc.asInstanceOf[JsValue])
       	                case None => new JsUndefined("")
       	            }
   	                new DynaJson(v)
