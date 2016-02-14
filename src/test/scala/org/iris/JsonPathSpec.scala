@@ -51,6 +51,7 @@ class JsonPathSpec extends PlaySpec {
                 "color": "red",
                 "price": 19.95
               },
+              "XGZ193-G" : null,
               "XGZ193-B" : {
                 "color": "blue",
                 "price": 21.95
@@ -60,21 +61,20 @@ class JsonPathSpec extends PlaySpec {
         }
     """)
     
-    implicit val pathNaming = DefaultPathNaming
-    val store = js.$.store
-    
-    "Binary expressions" should {
-        "work for a filter on js array" in {
+    "Filter expressions" should {
+        implicit val pathNaming = DefaultPathNaming
+        val store = js.$.store
+        "select from js array" in {
             store.book(?(%.price > 100)).title.asOpt[String].isDefined mustBe false
             store.book(?(%.price < 100)).title.asOpt[String].isDefined mustBe true
             store.book(?(%.price > 8.95)).title.as[String] mustBe "Sword of Honour"
-            // sorry, no == override for scala
-            store.book(?(%.ratings.klass -> "PR")).title.as[String] mustBe "Moby Dick"
+            // sorry, no == override for scala, use ===
+            store.book(?(%.ratings.klass == "PR")).title.as[String] mustBe "Moby Dick"
             store.book(?(%.published > new DateTime(2016, 1, 1, 0, 0))).title.as[String] mustBe "Moby Dick"
         }
-        "work for a filter on js object" in {
+        "select from js object" in {
             // bicycle is not an array but a map
-            store.bicycle(?(%.color -> "blue")).price.as[Double] mustBe 21.95
+            store.bicycle(?(%.color == "blue")).price.as[Double] mustBe 21.95
         }
         "allow extraction" in {
             store.book(?(%.price > 100)).title.lookupResult match {
@@ -92,24 +92,28 @@ class JsonPathSpec extends PlaySpec {
                 store.book(?(%.price > 20)).title
             }.as[String] mustBe "The Lord of the Rings"
         } 
-    }
-
-    "Presence expressions" should {
-        "work" in {
+        "handle presence expressions" in {
             store.book(?(%.ratings)).title.as[String] mustBe "Sayings of the Century"
         }
-    }
-
-    "Multi-row expressions" should {
-        "work" in {
+        "handle multi-row selection" in {
             store.book.ratings.klass.as[List[String]] mustBe List("R", "PR")
             store.book(?(%.price >= 9)).title.as[String] mustBe "Sword of Honour"
             store.book(*(%.price >= 9)).title.as[List[String]] mustBe List("Sword of Honour", "The Lord of the Rings")
             store.book(*(%.price <= 100)).title.as[List[String]].size mustBe 4
             store.book(*(%.category <> "reference")).title.as[List[String]].size mustBe 3
             
-            store.book(*(%.category -> "fiction" && %.price <= 20)).title.as[List[String]] mustBe List("Sword of Honour","Moby Dick")
-            store.book(*(%.category -> "fiction" || %.category -> "reference")).title.as[Set[String]] mustBe Set("Moby Dick", "Sword of Honour", "The Lord of the Rings", "Sayings of the Century")
+            store.book(*(%.category === "fiction" && %.price <= 20)).title.as[List[String]] mustBe List("Sword of Honour","Moby Dick")
+            store.book(*(%.category === "fiction" || %.category === "reference")).title.as[Set[String]] mustBe Set("Moby Dick", "Sword of Honour", "The Lord of the Rings", "Sayings of the Century")
+        }
+    }
+
+    "null js value" should {
+        implicit val pathNaming = new PathNaming {
+            def toJsonKey(javaKey: String) = javaKey.replaceAll("_", "-")
+        }
+        "be handled as jsundefined" in {
+            js.$.store.bicycle.XGZ193_G.price.asOpt[Double] mustBe None
+            new JsString("")
         }
     }
 }
