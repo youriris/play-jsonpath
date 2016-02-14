@@ -17,6 +17,12 @@ object JsonPath {
           def toJsonKey(javaKey: String) = javaKey
       }
       
+      object DefaultDateTimeReads extends Reads[DateTime] {
+          def reads(js: JsValue) = {
+              JsSuccess(new DateTime(js.as[String], DateTimeZone.UTC))
+          }
+      }
+      
       object DynaJson {
           def apply(jsValue: JsValue)(implicit ns: PathNaming) = new DynaJson(jsValue)
           def apply(jsValue: Option[JsValue])(implicit ns: PathNaming) = new DynaJson(jsValue)
@@ -118,7 +124,7 @@ object JsonPath {
           }
       }
       
-      abstract class JpBinaryExpression(l: JpPathExpression, r: JpConstantExpression) extends JpExpression {
+      abstract class JpBinaryExpression[T: Reads](l: JpPathExpression, r: JpConstantExpression[T]) extends JpExpression {
           def evaluate(filter: JpPathFilter, path: DynaJson)(implicit PathNaming: PathNaming) = {
               val toStringOrDouble = (v: Any) => v match {
                   case i: Int => i.toDouble
@@ -126,13 +132,15 @@ object JsonPath {
                   case d: java.lang.Double => d.toDouble
                   case n: JsNumber => n.as[Double]
                   case s: JsString => s.as[String]
+                  case d: DateTime => d
                   case other => other.toString
               }
               
               // either double or string
               val normalize = (l: Any, r: Any) => l match {
                 case s: String => r match {
-                    case r: DateTime => (new DateTime(s, DateTimeZone.UTC), r.getMillis)
+                    case r: DateTime => (new JsString(s).as[T].asInstanceOf[DateTime].getMillis.toDouble, 
+                                         r.getMillis.toDouble)
                     case r: Double => (s, r.toString)
                     case _ => (s, r)
                 }
@@ -163,7 +171,7 @@ object JsonPath {
           implicit def compare[T: Ordering](l: T, r: T) = implicitly[Ordering[T]].compare(l, r)
       }
       
-      protected class JpConstantExpression(v: Any) extends JpExpression {
+      protected class JpConstantExpression[T: Reads](v: T) extends JpExpression {
           def evaluate(filter: JpPathFilter, path: DynaJson)(implicit PathNaming: PathNaming) = 
               Seq(new JpResult(v, null, null))
       }
@@ -171,31 +179,32 @@ object JsonPath {
       protected case class JpResult(key: Any, doc: JsValue, result: JsValue)
       
       protected class JpPathExpression(paths: Either[String, Int]*) extends JpExpression with Dynamic {
-          def <(r: JpConstantExpression) = new JpBinaryExpression(this, r) {
+          def <[R: Reads](r: JpConstantExpression[R]) = new JpBinaryExpression(this, r) {
               override def _evaluate[T: Ordering](l: T, r: T) = compare(l, r) < 0
           }
           
-          def <=(r: JpConstantExpression) = new JpBinaryExpression(this, r) {
+          def <=[R: Reads](r: JpConstantExpression[R]) = new JpBinaryExpression(this, r) {
               override def _evaluate[T: Ordering](l: T, r: T) = compare(l, r) <= 0
           }
           
-          def >(r: JpConstantExpression) = new JpBinaryExpression(this, r) {
+          def >[R: Reads](r: JpConstantExpression[R]) = new JpBinaryExpression(this, r) {
               override def _evaluate[T: Ordering](l: T, r: T) = compare(l, r) > 0
           }
           
-          def >=(r: JpConstantExpression) = new JpBinaryExpression(this, r) {
+          def >=[R: Reads](r: JpConstantExpression[R]) = new JpBinaryExpression(this, r) {
               override def _evaluate[T: Ordering](l: T, r: T) = compare(l, r) >= 0
           }
-          
-          def ==(r: JpConstantExpression) = new JpBinaryExpression(this, r) {
+
+          // this works only when you don't have && or || after
+          def ==[R: Reads](r: JpConstantExpression[R]) = new JpBinaryExpression(this, r) {
               override def _evaluate[T: Ordering](l: T, r: T) = compare(l, r) == 0
           }
 
-          def ===(r: JpConstantExpression) = new JpBinaryExpression(this, r) {
+          def ===[R: Reads](r: JpConstantExpression[R]) = new JpBinaryExpression(this, r) {
               override def _evaluate[T: Ordering](l: T, r: T) = compare(l, r) == 0
           }
 
-          def <>(r: JpConstantExpression) = new JpBinaryExpression(this, r) {
+          def <>[R: Reads](r: JpConstantExpression[R]) = new JpBinaryExpression(this, r) {
               override def _evaluate[T: Ordering](l: T, r: T) = compare(l, r) != 0
           }
 
@@ -278,11 +287,5 @@ object JsonPath {
       def % = new Dynamic {
           def selectDynamic(key: String) = new JpPathExpression(Left(key))
           def applyDynamic(key: String) = new JpPathExpression(Left(key))
-      }
-      
-      implicit val dateTimeReads = new Reads[DateTime] {
-          def reads(js: JsValue) = {
-              JsSuccess(new DateTime(js.as[String], DateTimeZone.UTC))
-          }
       }
 }

@@ -62,6 +62,7 @@ class JsonPathSpec extends PlaySpec {
     """)
     
     "Filter expressions" should {
+        // implement your own PathNaming or use the default one
         implicit val pathNaming = DefaultPathNaming
         val store = js.$.store
         "select from js array" in {
@@ -70,6 +71,8 @@ class JsonPathSpec extends PlaySpec {
             store.book(?(%.price > 8.95)).title.as[String] mustBe "Sword of Honour"
             // sorry, no == override for scala, use ===
             store.book(?(%.ratings.klass == "PR")).title.as[String] mustBe "Moby Dick"
+            // implement your own Reads[DateTime] or use the default one
+            implicit val dateTimeReads = DefaultDateTimeReads
             store.book(?(%.published > new DateTime(2016, 1, 1, 0, 0))).title.as[String] mustBe "Moby Dick"
         }
         "select from js object" in {
@@ -107,13 +110,19 @@ class JsonPathSpec extends PlaySpec {
         }
     }
 
-    "null js value" should {
+    "Complex expressions" should {
         implicit val pathNaming = new PathNaming {
             def toJsonKey(javaKey: String) = javaKey.replaceAll("_", "-")
         }
-        "be handled as jsundefined" in {
-            js.$.store.bicycle.XGZ193_G.price.asOpt[Double] mustBe None
+        val store = js.$.store
+        "hanlde a null js value" in {
+            store.bicycle.XGZ193_G.price.asOpt[Double] mustBe None
+        }
+        "hanlde variables in a constant expression" in {
             new JsString("")
+            store.bicycle(?(%.price < 19 + 1)).color.as[String] mustBe "red"
+            val basePrice = 15.0
+            store.bicycle(?(%.price > basePrice + 5)).color.as[String] mustBe "blue"
         }
     }
 }
