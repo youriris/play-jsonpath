@@ -66,6 +66,7 @@ class JsonPathSpec extends PlaySpec {
     "Binary expressions" should {
         "work for a filter on js array" in {
             store.book(?(%.price > 100)).title.asOpt[String].isDefined mustBe false
+            store.book(?(%.price < 100)).title.asOpt[String].isDefined mustBe true
             store.book(?(%.price > 8.95)).title.as[String] mustBe "Sword of Honour"
             store.book(?(%.ratings.klass == "PR")).title.as[String] mustBe "Moby Dick"
             store.book(?(%.published > new DateTime(2016, 1, 1, 0, 0))).title.as[String] mustBe "Moby Dick"
@@ -88,7 +89,18 @@ class JsonPathSpec extends PlaySpec {
 
     "Presence expressions" should {
         "work" in {
-            js.$.store.book(?(%.ratings)).title.as[String] mustBe "Sayings of the Century"
+            store.book(?(%.ratings)).title.as[String] mustBe "Sayings of the Century"
+        }
+    }
+
+    "Multi-row expressions" should {
+        "work" in {
+            store.book.ratings.klass.as[List[String]] mustBe List("R", "PR")
+            store.book(?(%.price >= 9)).title.as[String] mustBe "Sword of Honour"
+            store.book(*(%.price >= 9)).title.as[List[String]] mustBe List("Sword of Honour", "The Lord of the Rings")
+            store.book(*(%.price <= 100)).title.as[List[String]].size mustBe 4
+            // TODO fix this
+            // store.book(*(%.category != "reference")).title.as[List[String]].size mustBe 3
         }
     }
 }
