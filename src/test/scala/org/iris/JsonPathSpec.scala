@@ -119,6 +119,8 @@ class JsonPathSpec extends PlaySpec {
             // access all array entries
             store.book.*.klass.as[List[String]] mustBe List("R", "PR")
             store.book.*.as[List[JsValue]].size mustBe 22
+            // wild card on all value nodes returns undefined
+            store.book.*.klass.*.asOpt[String] mustBe None
         }
     }
 

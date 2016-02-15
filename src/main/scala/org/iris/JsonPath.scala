@@ -68,7 +68,8 @@ object JsonPath {
                                   case _ => Seq[JsValue]()
                               }}.flatten
                               new DynaJson(JsArray(children))
-                          case _ => singleRow()
+                          case o: JsObject => new DynaJson(JsArray(o.values.toSeq))
+                          case _ => new UndefinedDynaJson(new JsUndefined(""))
                       }
                       case _ => js match {
                           case a: JsArray => 
@@ -281,7 +282,7 @@ object JsonPath {
 
       implicit def dateTimeToExpression(dt: DateTime) = new JpConstantExpression(dt)
 
-      implicit class JsValueWrapper(jsValue: JsValue) {
+      implicit class JpJsValueWrapper(jsValue: JsValue) {
           def $(implicit PathNaming: PathNaming) = new DynaJson(jsValue)
       }
     
