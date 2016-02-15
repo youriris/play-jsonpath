@@ -58,17 +58,30 @@ object JsonPath {
               }
 
               lookupResult match {
-                  case JsDefined(js) => js match {
-                      case a: JsArray =>
-                          // rebuild an array with children
-                          val children = a.value.filter { e =>
-                              e \ ns.toJsonKey(key) match {
-                                  case r: JsUndefined => false
-                                  case r => true
-                              }
-                          }.map { e => (e \ ns.toJsonKey(key)).as[JsValue] }
-                          new DynaJson(JsArray(children))
-                      case _ => singleRow()
+                  case JsDefined(js) => key match {
+                      case "*" => js match {
+                          case a: JsArray => 
+                              // rebuild an array with children
+                              val children = a.value.map { e => e match {
+                                  case a: JsArray => a.value
+                                  case o: JsObject => o.values
+                                  case _ => Seq[JsValue]()
+                              }}.flatten
+                              new DynaJson(JsArray(children))
+                          case _ => singleRow()
+                      }
+                      case _ => js match {
+                          case a: JsArray => 
+                              // rebuild an array with children
+                              val children = a.value.filter { e =>
+                                  e \ ns.toJsonKey(key) match {
+                                      case r: JsUndefined => false
+                                      case r => true
+                                  }
+                              }.map { e => (e \ ns.toJsonKey(key)).as[JsValue] }
+                              new DynaJson(JsArray(children))
+                          case _ => singleRow()
+                      }
                   }
                   case _ =>  singleRow()
               }
@@ -76,11 +89,14 @@ object JsonPath {
           
           def apply(filter: JpPathFilter) = filter.find(this)
       
-          def apply(index: Int) = 
-              lookupResult(index) match {
-                  case r: JsUndefined => new UndefinedDynaJson(r)
-                  case r => new DynaJson(r)
-              }
+          def apply(index: Int) = index match {
+              case -1 => this
+              case _ =>
+                  lookupResult(index) match {
+                      case r: JsUndefined => new UndefinedDynaJson(r)
+                      case r => new DynaJson(r)
+                  }
+          }
           
           def getOrElse(e: => DynaJson) = this match {
               case _: JpUndefined => e
@@ -282,6 +298,8 @@ object JsonPath {
       
       // wild-card filter: returns an array
       def *(e: JpExpression) = new JpListFilter(e)
+
+      def * = -1
       
       // start from the current node in a filter expression
       def % = new Dynamic {

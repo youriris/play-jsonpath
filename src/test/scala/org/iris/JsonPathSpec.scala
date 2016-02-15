@@ -99,6 +99,9 @@ class JsonPathSpec extends PlaySpec {
             store.book(?(%.ratings)).title.as[String] mustBe "Sayings of the Century"
         }
         "handle multi-row selection" in {
+            store.book(2).ratings.klass.as[String] mustBe "PR"
+            store.book(*).ratings.klass.as[List[String]] mustBe List("R", "PR")
+            // you can omit (*)
             store.book.ratings.klass.as[List[String]] mustBe List("R", "PR")
             store.book(?(%.price >= 9)).title.as[String] mustBe "Sword of Honour"
             store.book(*(%.price >= 9)).title.as[List[String]] mustBe List("Sword of Honour", "The Lord of the Rings")
@@ -107,6 +110,15 @@ class JsonPathSpec extends PlaySpec {
             
             store.book(*(%.category === "fiction" && %.price <= 20)).title.as[List[String]] mustBe List("Sword of Honour","Moby Dick")
             store.book(*(%.category === "fiction" || %.category === "reference")).title.as[Set[String]] mustBe Set("Moby Dick", "Sword of Honour", "The Lord of the Rings", "Sayings of the Century")
+        }
+        "handle wild card paths" in {
+            // access array with index
+            store.book(0).ratings.klass.as[String] mustBe "R"
+            // access all array entries
+            store.book.ratings.klass.as[List[String]] mustBe List("R", "PR")
+            // access all array entries
+            store.book.*.klass.as[List[String]] mustBe List("R", "PR")
+            store.book.*.as[List[JsValue]].size mustBe 22
         }
     }
 
