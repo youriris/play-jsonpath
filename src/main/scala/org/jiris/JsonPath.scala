@@ -1,4 +1,4 @@
-package org.iris
+package org.jiris
 
 import scala.language.dynamics
 

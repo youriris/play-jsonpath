@@ -1,4 +1,4 @@
-package org.iris
+package org.jiris
 
 import scala.language.dynamics
 
@@ -8,7 +8,7 @@ import org.scalatestplus.play.PlaySpec
 import org.joda.time.DateTime
 import play.api.libs.json._
 
-import org.iris.JsonPath._
+import org.jiris.JsonPath._
 
 @RunWith(classOf[JUnitRunner])
 class JsonPathSpec extends PlaySpec {

@@ -1,4 +1,4 @@
-organization := "com.youriris"
+organization := "org.jiris"
 
 name := """play-jsonpath"""
 
