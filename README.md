@@ -98,6 +98,28 @@ find all books' klasses:
 scala> store.book.*.klass.as[List[String]]
 List("R", "PR")
 ```
+
+### More to customize
+Suppose that your json document has ratings.class instead of ratings.klass. In scala, 'class' is a keyword that
+you cannot use as a function name. Your jsonpath expression has to use 'klass'. However, you can still keep 'class'
+in your json documents. Make this implicit path naming available to your code.
+
+```scala
+implicit val pathNaming = new PathNaming {
+  def toJsonKey(javaKey: String) = if(javaKey == "klass") "class" else javaKey
+}
+```
+
+Likewise, you can have your own Reads[Date] implemented.
+
+```scala
+implicit val dateReads = new Reads[DateTime] {
+  def reads(js: JsValue) = {
+    JsSuccess(new SimpleDateFormat("yyMMddHHmmssZ").parse(js.as[String]))
+  }
+}
+```
+
 ### Samples
 * [JsonPathSpec.scala] [spec]
 
