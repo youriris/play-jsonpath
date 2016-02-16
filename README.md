@@ -9,7 +9,7 @@ play-jsonpath is a jsonpath implementation that works with play's json library.
   - %: current node
   
 ### Usage
-For the following json document:
+For the following json document that I borrowed from [gatling]'s implementation:
 ```json
 { "store": {
     "book": [
@@ -137,7 +137,7 @@ $ sbt eclipse
 ```
 
 [spec]: <https://github.com/youriris/play-jsonpath/blob/master/src/test/scala/org/jiris/JsonPathSpec.scala>
-
+[gatling]: <https://github.com/gatling/jsonpath>
 
 
 
