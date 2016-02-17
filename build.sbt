@@ -8,15 +8,10 @@ scalaVersion := "2.11.7"
 
 libraryDependencies += "com.typesafe.play" % "play-json_2.11" % "2.4.3"
 
-// Change this to another test framework if you prefer
 libraryDependencies ++= Seq(
-    //"org.scalatest" %% "scalatest" % "2.2.4" % "test"
     "org.scalatest" % "scalatest_2.11" % "2.2.5" % "test",
     "org.scalatestplus" %% "play" % "1.4.0-M4" % "test"
 )
-
-// Uncomment to use Akka
-//libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.3.11"
 
 pomExtra := (
 <licenses>
@@ -41,4 +36,15 @@ pomExtra := (
 </scm>
 )
 
-publishTo := Some(Resolver.file("file",  new File(Path.userHome.absolutePath+"/.m2/repository")))
+homepage := Some(url("http://github.com/youriris/play-jsonpath"))
+
+publishMavenStyle := true
+//publishTo := Some(Resolver.file("file",  new File(Path.userHome.absolutePath+"/.m2/repository")))
+
+publishTo := {
+  val nexus = "https://oss.sonatype.org/"
+  if (isSnapshot.value)
+    Some("snapshots" at nexus + "content/repositories/snapshots")
+  else
+    Some("releases"  at nexus + "service/local/staging/deploy/maven2")
+}
