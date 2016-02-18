@@ -104,6 +104,11 @@ object JsonPath {
               case _ => this
           }
           
+          def getOrElse[T: Reads](e: => T) = this match {
+              case _: JpUndefined => e
+              case _ => lookupResult.as[T]
+          }
+          
           def jsValue = lookupResult.get
       }
       

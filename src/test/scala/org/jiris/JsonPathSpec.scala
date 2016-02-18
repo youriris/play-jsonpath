@@ -91,6 +91,14 @@ class JsonPathSpec extends PlaySpec {
             }
         }
         "allow getOrElse" in {
+            store.book(?(%.category == "fiction")).title.getOrElse {
+                "No fiction found"
+            } mustBe "Sword of Honour"
+
+            store.book(?(%.category == "non-fiction")).title.getOrElse {
+                "No non-fiction found"
+            } mustBe "No non-fiction found"
+
             store.book(?(%.price > 100)).title.getOrElse {
                 store.book(?(%.price > 20)).title
             }.as[String] mustBe "The Lord of the Rings"
