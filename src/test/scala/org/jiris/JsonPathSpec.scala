@@ -91,20 +91,22 @@ class JsonPathSpec extends PlaySpec {
             }
         }
         "allow getOrElse" in {
+            // binds to the type of the value in the else block
             store.book(?(%.category == "fiction")).title.getOrElse {
                 "No fiction found"
             } mustBe "Sword of Honour"
 
-            store.book(?(%.category == "non-fiction")).title.getOrElse {
-                "No non-fiction found"
-            } mustBe "No non-fiction found"
+            store.book(?(%.category == "non-fiction")).price.getOrElse(0.0) mustBe 0.0
 
+            store.book(?(%.category == "non-fiction")).price.getOrElse[String](null) mustBe null
+
+            // binds to dynajson node
             store.book(?(%.price > 100)).title.getOrElse {
                 store.book(?(%.price > 20)).title
             }.as[String] mustBe "The Lord of the Rings"
         } 
         "handle presence expressions" in {
-            store.book(?(%.ratings)).title.as[String] mustBe "Sayings of the Century"
+            store.book(?(%.ratings)).title.getOrElse[String](null) mustBe "Sayings of the Century"
         }
         "handle multi-row selection" in {
             store.book(2).ratings.klass.as[String] mustBe "PR"
@@ -141,7 +143,6 @@ class JsonPathSpec extends PlaySpec {
             store.bicycle.XGZ193_G.price.asOpt[Double] mustBe None
         }
         "hanlde variables in a constant expression" in {
-            new JsString("")
             store.bicycle(?(%.price < 19 + 1)).color.as[String] mustBe "red"
             val basePrice = 15.0
             store.bicycle(?(%.price > basePrice + 5)).color.as[String] mustBe "blue"
