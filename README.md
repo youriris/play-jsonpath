@@ -60,11 +60,13 @@ For the following json document that I borrowed from [gatling]'s implementation:
 ```
 select third book's klass:
 ```scala
-scala> store.book(2).ratings.klass.as[String]
+scala> val js = Json.parse(jsonString)
+scala> js.$.store.book(2).ratings.klass.as[String]
 "PR"
 ```
 select all klasses:
 ```scala
+scala> val store = js.$.store
 scala> store.book(*).ratings.klass.as[List[String]]
 List("R", "PR")
 ```
