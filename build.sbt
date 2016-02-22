@@ -7,6 +7,7 @@ version := "1.1-snapshot"
 scalaVersion := "2.11.7"
 
 libraryDependencies += "com.typesafe.play" % "play-json_2.11" % "2.4.3"
+libraryDependencies += "joda-time" % "joda-time" % "2.8.1"
 
 libraryDependencies ++= Seq(
     "org.scalatest" % "scalatest_2.11" % "2.2.5" % "test",

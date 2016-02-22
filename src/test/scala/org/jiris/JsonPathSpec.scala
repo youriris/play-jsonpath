@@ -1,14 +1,13 @@
 package org.jiris
 
 import scala.language.dynamics
-
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import org.scalatestplus.play.PlaySpec
 import org.joda.time.DateTime
 import play.api.libs.json._
-
 import org.jiris.JsonPath._
+import org.scalatest.Ignore
 
 @RunWith(classOf[JUnitRunner])
 class JsonPathSpec extends PlaySpec {
