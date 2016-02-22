@@ -174,7 +174,7 @@ class PathMacro2Spec extends PlaySpec {
            println("old Tree = " + expr.tree)
            println("new Tree = " + newTree)
            
-           val r = jsonpath[JsLookupResult]{js.$.store.book(?(%.price > 8.95)).title}
+           val r = ${js.$.store.book(?(%.price > 8.95)).title}
            println("title=", r.as[String])
         }
     }

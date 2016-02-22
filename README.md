@@ -120,6 +120,31 @@ implicit val dateReads = new Reads[DateTime] {
 }
 ```
 
+### What's next
+Scala macro version is currently under development on v1.1. The scala dynamics is used only during compile time to allow dynamic key names. By the time compilation completes, the scala AST code is converted into play framework's **$bslash** functions.
+
+```scala
+scala> store.book.ratings.klass.as[List[String]]
+```
+The above code block is re-written to the following during compilation, thus removing the runtime overhead of scala dynamics.
+```scala
+scala> (store \ "book" \ "ratings" \ "klass").as[List[String]]
+```
+
+Jsonpath macro function is backward compatible. To enable the macro, you need to either call **PathMacro.$()** or **PathMacro.pathMacro()**.
+
+```scala
+scala> import PathMacro._
+scala> ${js.$.store.book.ratings.klass}.as[List[String]]
+```
+where **js** is the JsValue instance. **pathMacro()** allows to use an entire code block without calling **$()** over and over.
+```scala
+scala> import PathMacro._
+scala> pathMacro{
+scala>   store.bicycle(?(%.color == "blue")).price.as[Double] mustBe 21.95
+scala>   store.book(?(%.category == "non-fiction")).price.getOrElse(0.0) mustBe 0.0
+scala> }
+```
 ### Samples
 * [JsonPathSpec.scala] [spec]
 

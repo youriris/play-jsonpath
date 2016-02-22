@@ -7,6 +7,7 @@ import org.scalatestplus.play.PlaySpec
 import org.joda.time.DateTime
 import play.api.libs.json._
 import org.jiris.JsonPath._
+import org.jiris.PathMacro._
 import org.scalatest.Ignore
 
 @RunWith(classOf[JUnitRunner])
@@ -60,7 +61,7 @@ class PathMacroSpec extends PlaySpec {
         }
     """)
     
-    PathMacro.jsonpath[Unit]{
+    pathMacro{
         "Filter expressions" should {
             // implement your own PathNaming or use the default one
             implicit val pathNaming = DefaultPathNaming

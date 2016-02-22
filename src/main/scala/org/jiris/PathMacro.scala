@@ -11,7 +11,9 @@ import reflect.macros.blackbox.Context
 import org.jiris.JsonPath.PathNaming
 
 object PathMacro {
-    def jsonpath[R](param: Any): R = macro jsonpath_impl[R]
+    def $(param: Any): JsLookupResult = macro jsonpath_impl[JsLookupResult]
+    
+    def pathMacro(param: Any): Unit = macro jsonpath_impl[Unit]
 
     def jsonpath_impl[R](c: Context)(param: c.Expr[Any]): c.Expr[R] = {
         import c.universe._
