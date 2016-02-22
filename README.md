@@ -70,7 +70,7 @@ scala> val store = js.$.store
 scala> store.book(*).ratings.klass.as[List[String]]
 List("R", "PR")
 ```
-a wild-card for this index of an array can be omitted:
+a wild-card for the index of an array can be omitted:
 ```scala
 scala> store.book.ratings.klass.as[List[String]]
 List("R", "PR")
