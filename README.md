@@ -137,10 +137,11 @@ Jsonpath macro function is backward compatible. To enable the macro, you need to
 scala> import PathMacro._
 scala> ${js.$.store.book.ratings.klass}.as[List[String]]
 ```
-where **js** is the JsValue instance. **pathMacro()** allows to use an entire code block without calling **$()** over and over.
+where **js** is the JsValue instance. **pathMacro()** allows to use jsonpath in an entire code block without calling **$()** over and over.
 ```scala
 scala> import PathMacro._
 scala> pathMacro{
+scala>   val store = js.$.store
 scala>   store.bicycle(?(%.color == "blue")).price.as[Double] mustBe 21.95
 scala>   store.book(?(%.category == "non-fiction")).price.getOrElse(0.0) mustBe 0.0
 scala> }
