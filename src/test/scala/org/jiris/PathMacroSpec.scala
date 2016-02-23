@@ -1,14 +1,10 @@
 package org.jiris
 
-import scala.language.dynamics
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 import org.scalatestplus.play.PlaySpec
-import org.joda.time.DateTime
+import org.jiris.JsonPath.DynaJson
 import play.api.libs.json._
-import org.jiris.JsonPath._
-import org.jiris.PathMacro._
-import org.scalatest.Ignore
 
 @RunWith(classOf[JUnitRunner])
 class PathMacroSpec extends PlaySpec {
@@ -60,94 +56,82 @@ class PathMacroSpec extends PlaySpec {
           }
         }
     """)
-    
-    pathMacro{
-        "Filter expressions" should {
-            // implement your own PathNaming or use the default one
-            implicit val pathNaming = DefaultPathNaming
-            val store = js.$.store
-            "select from js array" in {
-                store.book(?(%.price > 100)).title.asOpt[String].isDefined mustBe false
-                store.book(?(%.price < 100)).title.asOpt[String].isDefined mustBe true
-                store.book(?(%.price > 8.95)).title.as[String] mustBe "Sword of Honour"
-                // sorry, no == override for scala, use ===
-                store.book(?(%.ratings.klass == "PR")).title.as[String] mustBe "Moby Dick"
-                // implement your own Reads[DateTime] or use the default one
-                implicit val dateTimeReads = DefaultDateTimeReads
-                store.book(?(%.published > new DateTime(2016, 1, 1, 0, 0))).title.as[String] mustBe "Moby Dick"
+
+    "Just" should {
+        implicit val pathNaming = JsonPath.DefaultPathNaming
+        val jsRoot = new DynaJson(js)
+        "testing" in {
+            import scala.reflect.runtime.{universe => ru}
+            import scala.reflect.runtime.universe._
+            import play.api.libs.json.Json._
+
+            import JsonPath._
+            val expr = ru.reify{js.$.store.book(0).title}
+            val expr3 = ru.reify{js.$.store.book(?(%.price > 8.95)).title}
+            val expr1 = ru.reify{
+                val store = js.$.store
+                store.book(?(%.price > 8.95)).title
             }
-            "select from js object" in {
-                // bicycle is not an array but a map
-                store.bicycle(?(%.color == "blue")).price.as[Double] mustBe 21.95
+            val expr2 = ru.reify{
+                println("10")
+                val hgs = 20
+                js.$.store
             }
-            "allow extraction" in {
-                store.book(?(%.price > 100)).title.lookupResult match {
-                    case _: JsUndefined =>
-                    case JsDefined(value) => fail
+            
+            val mirror = ru.runtimeMirror(this.getClass.getClassLoader)
+            val jlr = mirror.staticModule("play.api.libs.json.JsLookupResult")
+            val jv = mirror.staticModule("play.api.libs.json.JsValue")
+            val jp = mirror.staticModule("org.jiris.JsonPath.DynaJson")
+            val jp2 = mirror.staticModule("org.jiris.JsonPath")
+            val jsLookupResultToJsLookupFunc = Select(Ident(jlr), TermName("jsLookupResultToJsLookup"))
+            val jsValueToJsLookupFunc = Select(Ident(jv), TermName("jsValueToJsLookup"))
+            val applyFunc = Select(Ident(jp), TermName("apply"))
+            
+            object xformer extends Transformer {
+                implicit class TreeWrapper(a: Tree) {
+                    def \(y: List[Tree]) = {
+                        Apply(applyFunc, List(transform(a), transform(y.head)))
+                    }
                 }
-                //shortcut
-                store.book(?(%.price > 100)).title match {
-                    case _: JpUndefined =>
-                    case JpDefined(value) => fail // value is a JsValue
-                }
-            }
-            "allow getOrElse" in {
-                // binds to the type of the value in the else block
-                store.book(?(%.category == "fiction")).title.getOrElse {
-                    "No fiction found"
-                } mustBe "Sword of Honour"
-    
-                store.book(?(%.category == "non-fiction")).price.getOrElse(0.0) mustBe 0.0
-    
-                store.book(?(%.category == "non-fiction")).price.getOrElse[String](null) mustBe null
-    
-                // binds to dynajson node
-                store.book(?(%.price > 100)).title.getOrElse {
-                    store.book(?(%.price > 20)).title
-                }.as[String] mustBe "The Lord of the Rings"
-            } 
-            "handle presence expressions" in {
-                store.book(?(%.ratings)).title.getOrElse[String](null) mustBe "Sayings of the Century"
-            }
-            "handle multi-row selection" in {
-                store.book(2).ratings.klass.as[String] mustBe "PR"
-                store.book(*).ratings.klass.as[List[String]] mustBe List("R", "PR")
-                // you can omit (*)
-                store.book.ratings.klass.as[List[String]] mustBe List("R", "PR")
-                store.book(?(%.price >= 9)).title.as[String] mustBe "Sword of Honour"
-                store.book(*(%.price >= 9)).title.as[List[String]] mustBe List("Sword of Honour", "The Lord of the Rings")
-                store.book(*(%.price <= 100)).title.as[List[String]].size mustBe 4
-                store.book(*(%.category <> "reference")).title.as[List[String]].size mustBe 3
                 
-                store.book(*(%.category === "fiction" && %.price <= 20)).title.as[List[String]] mustBe List("Sword of Honour","Moby Dick")
-                store.book(*(%.category === "fiction" || %.category === "reference")).title.as[Set[String]] mustBe Set("Moby Dick", "Sword of Honour", "The Lord of the Rings", "Sayings of the Century")
+                implicit class SelectWrapper(s: Select) {
+                    def \(y: List[Tree]) = {
+                        Apply(applyFunc, List(s, transform(y.head)))
+                    }
+                }
+                
+                override def transform(tree: Tree): Tree = {
+                    tree match {
+                        case Apply(Select(Apply(Select(Apply(x2, y2), TermName("$")), y1), TermName("selectDynamic")), y) =>
+                            Select(Apply(jsValueToJsLookupFunc, y2), TermName("result")) \ y // js.$.store
+                        case Apply(Select(Select(Ident(m), TermName("$percent")), TermName("selectDynamic")), y)
+                               if m.toTermName == TermName("JsonPath") =>
+                            super.transform(tree)
+                        case Apply(Select(a, TermName("selectDynamic")), y) =>
+                            a \ y // book.title
+                        case Apply(Select(Apply(Select(a1, TermName("applyDynamic")), y1), TermName("apply")), y) =>
+                            a1 \ y1 \ y // store.book(0)
+                        case _ => super.transform(tree)
+                    }
+                }
             }
-            "handle wild card paths" in {
-                // access array with index
-                store.book(0).ratings.klass.as[String] mustBe "R"
-                // access all array entries
-                store.book.ratings.klass.as[List[String]] mustBe List("R", "PR")
-                // access all array entries
-                store.book.*.klass.as[List[String]] mustBe List("R", "PR")
-                store.book.*.as[List[JsValue]].size mustBe 22
-                // wild card on all value nodes returns undefined
-                store.book.*.klass.*.asOpt[String] mustBe None
-            }
-        }
-    
-        "Complex expressions" should {
-            implicit val pathNaming = new PathNaming {
-                def toJsonKey(javaKey: String) = javaKey.replaceAll("_", "-")
-            }
-            val store = js.$.store
-            "hanlde a null js value" in {
-                store.bicycle.XGZ193_G.price.asOpt[Double] mustBe None
-            }
-            "hanlde variables in a constant expression" in {
-                store.bicycle(?(%.price < 19 + 1)).color.as[String] mustBe "red"
-                val basePrice = 15.0
-                store.bicycle(?(%.price > basePrice + 5)).color.as[String] mustBe "blue"
-            }
+
+            var newTree = xformer.transform(expr.tree)
+            println("old Tree = " + expr.tree)
+            println("old Tree raw = " + ru.showRaw(expr.tree))
+            println("new Tree = " + newTree)
+            newTree.toString() mustBe """DynaJson.apply(DynaJson.apply(DynaJson.apply(DynaJson.apply(JsValue.jsValueToJsLookup(PathMacroSpec.js).result, "store"), "book"), 0), "title")"""
+            println("old Tree2 = " + expr2.tree)
+            println("new Tree2 = " + xformer.transform(expr2.tree))
+            println("old Tree3 = " + expr3.tree)
+            println("new Tree3 = " + xformer.transform(expr3.tree))
+            
+            val r1 = ${js.$.store.book(0).title}
+            println("title = " + r1.as[String])
+            r1.as[String] mustBe "Sayings of the Century"
+            val r2 = ${js.$.store.book(*(%.price > 8.95)).title}
+            println("title = " + r2.as[List[String]])
+            r2.as[List[String]] mustBe List("Sword of Honour", "Moby Dick", "The Lord of the Rings")
         }
     }
 }
