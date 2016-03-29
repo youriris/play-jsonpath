@@ -243,7 +243,20 @@ object JsonPath {
     
     protected case class JpResult(key: Any, doc: JsValue, result: JsValue)
     
-    protected class JpPathExpression(paths: Either[String, Int]*) extends JpExpression with Dynamic {
+    object JpPathExpression {
+        def apply(key: String) = new Object() {
+            def test = "hello"
+        }
+//        def apply(key: String): JpPathExpression = new JpPathExpression(Left(key))
+        
+        def apply(expr: JpPathExpression, key: String) = expr(key)
+
+        def apply(expr: JpPathExpression, index: Int) = expr(index)
+    }
+    
+    class JpPathExpression(paths: Either[String, Int]*) extends JpExpression with Dynamic {
+        def test = new JpPathExpression(Left("Hello"))
+        
         def <[R: Reads](r: JpConstantExpression[R]) = new JpBinaryExpression(this, r) {
             override def _evaluate[T: Ordering](l: T, r: T) = compare(l, r) < 0
         }
@@ -345,6 +358,8 @@ object JsonPath {
         }
     }
     
+    def ?(e: Any) = new Object()
+    
     // wild-card filter: returns an array
     def *(e: JpExpression) = new JpListFilter(e)
 
@@ -356,7 +371,7 @@ object JsonPath {
         def applyDynamic(key: String) = new JpPathExpression(Left(key))
     }
 
-    def $(param: Any): JsLookupResult = macro jsonpath_impl[JsLookupResult]
+    def $(param: Any): Any = macro jsonpath_impl[Any]
     
     def jsonpath_impl[R](c: Context)(param: c.Expr[Any]): c.Expr[R] = {
         import c.universe._
@@ -365,18 +380,25 @@ object JsonPath {
             Select(Ident(c.mirror.staticModule(module)), TermName(fn))
             
         val jsValueToJsLookupFunc = func("play.api.libs.json.JsValue", "jsValueToJsLookup")
-        val applyFunc = func("org.jiris.JsonPath.DynaJson", "apply")
+        val djApplyFunc = func("org.jiris.JsonPath.DynaJson", "apply")
+        val jpeApplyFunc = func("org.jiris.JsonPath.JpPathExpression", "apply")
 
         object xformer extends Transformer {
+            var inCondition = false
+            
             implicit class TreeWrapper(a: Tree) {
                 def \(y: List[Tree]) = {
-                    Apply(applyFunc, List(transform(a), transform(y.head)))
+                    Apply(djApplyFunc, List(transform(a), transform(y.head)))
+                }
+
+                def /(y: List[Tree]) = {
+                    Apply(jpeApplyFunc, List(transform(a), transform(y.head)))
                 }
             }
             
             implicit class SelectWrapper(s: Select) {
                 def \(y: List[Tree]) = {
-                    Apply(applyFunc, List(s, transform(y.head)))
+                    Apply(djApplyFunc, List(s, transform(y.head)))
                 }
             }
             
@@ -384,13 +406,31 @@ object JsonPath {
                 tree match {
                     case Apply(Select(Apply(Select(Apply(x2, y2), TermName("$")), y1), TermName("selectDynamic")), y) =>
                         Select(Apply(jsValueToJsLookupFunc, y2), TermName("result")) \ y // js.$.store
+//                    case Apply(Select(Select(Ident(m), TermName("$percent")), TermName("selectDynamic")), y)
+//                            if m.toTermName == TermName("JsonPath") =>
+//                        super.transform(tree) // JsonPath.%
+                    case Apply(Select(Ident(m), TermName("$qmark")), y)
+                           if m.toTermName == TermName("JsonPath") =>
+                        inCondition = true
+                        val t = Apply(Select(Ident(m), TermName("$qmark")), y.map( y => transform(y)))
+                        inCondition = false
+                        t
+                    case Apply(Select(Ident(m), TermName("$times")), y)
+                           if m.toTermName == TermName("JsonPath") =>
+                        inCondition = true
+                        val t = Apply(Select(Ident(m), TermName("$times")), y.map( y => transform(y)))
+                        inCondition = false
+                        t
                     case Apply(Select(Select(Ident(m), TermName("$percent")), TermName("selectDynamic")), y)
                             if m.toTermName == TermName("JsonPath") =>
-                        super.transform(tree) // JsonPath.%
+                        Apply(jpeApplyFunc, y.map( y => transform(y)))
+//                        Apply(jpeApplyFunc, List(transform(y.head)))
                     case Apply(Select(a, TermName("selectDynamic")), y) =>
-                        a \ y // book.title
+                        if(inCondition) a / y
+                        else a \ y // book.title
                     case Apply(Select(Apply(Select(a1, TermName("applyDynamic")), y1), TermName("apply")), y) =>
-                        a1 \ y1 \ y // store.book(0)
+                        if(inCondition) a1 / y1 / y
+                        else a1 \ y1 \ y // store.book(0)
                     case _ => super.transform(tree)
                 }
             }

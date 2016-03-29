@@ -67,7 +67,8 @@ class PathMacroSpec extends PlaySpec {
 
             import JsonPath._
             val expr = ru.reify{js.$.store.book(0).title}
-            val expr3 = ru.reify{js.$.store.book(?(%.price > 8.95)).title}
+            val expr3 = ru.reify{js.$.store.book(?(%.price)).title}
+            val expr4 = ru.reify{js.$.store.book(?(%.price > 8.95)).title}
             val expr1 = ru.reify{
                 val store = js.$.store
                 store.book(?(%.price > 8.95)).title
@@ -82,15 +83,23 @@ class PathMacroSpec extends PlaySpec {
             val jlr = mirror.staticModule("play.api.libs.json.JsLookupResult")
             val jv = mirror.staticModule("play.api.libs.json.JsValue")
             val jp = mirror.staticModule("org.jiris.JsonPath.DynaJson")
+            val jpe = mirror.staticModule("org.jiris.JsonPath.JpPathExpression")
             val jp2 = mirror.staticModule("org.jiris.JsonPath")
             val jsLookupResultToJsLookupFunc = Select(Ident(jlr), TermName("jsLookupResultToJsLookup"))
             val jsValueToJsLookupFunc = Select(Ident(jv), TermName("jsValueToJsLookup"))
             val applyFunc = Select(Ident(jp), TermName("apply"))
+            val apply2Func = Select(Ident(jpe), TermName("apply"))
             
             object xformer extends Transformer {
+                var inCondition = false
+                
                 implicit class TreeWrapper(a: Tree) {
                     def \(y: List[Tree]) = {
                         Apply(applyFunc, List(transform(a), transform(y.head)))
+                    }
+
+                    def /(y: List[Tree]) = {
+                        Apply(apply2Func, List(transform(a), transform(y.head)))
                     }
                 }
                 
@@ -99,18 +108,32 @@ class PathMacroSpec extends PlaySpec {
                         Apply(applyFunc, List(s, transform(y.head)))
                     }
                 }
-                
+                ?(%.price > 8)
                 override def transform(tree: Tree): Tree = {
                     tree match {
                         case Apply(Select(Apply(Select(Apply(x2, y2), TermName("$")), y1), TermName("selectDynamic")), y) =>
                             Select(Apply(jsValueToJsLookupFunc, y2), TermName("result")) \ y // js.$.store
-                        case Apply(Select(Select(Ident(m), TermName("$percent")), TermName("selectDynamic")), y)
+                        case Apply(Select(Ident(m), TermName("$qmark")), y)
                                if m.toTermName == TermName("JsonPath") =>
-                            super.transform(tree)
+                            inCondition = true
+                            val t = Apply(Select(Ident(m), TermName("$qmark")), y.map( y => transform(y)))
+                            inCondition = false
+                            t
+                        case Apply(Select(Ident(m), TermName("$times")), y)
+                               if m.toTermName == TermName("JsonPath") =>
+                            inCondition = true
+                            val t = Apply(Select(Ident(m), TermName("$times")), y.map( y => transform(y)))
+                            inCondition = false
+                            t
+                        case Apply(Select(Select(Ident(m), TermName("$percent")), TermName("selectDynamic")), y)
+                                if m.toTermName == TermName("JsonPath") =>
+                            Apply(apply2Func, List(transform(y.head)))
                         case Apply(Select(a, TermName("selectDynamic")), y) =>
-                            a \ y // book.title
+                            if(inCondition) a / y
+                            else a \ y // book.title
                         case Apply(Select(Apply(Select(a1, TermName("applyDynamic")), y1), TermName("apply")), y) =>
-                            a1 \ y1 \ y // store.book(0)
+                            if(inCondition) a1 / y1 / y
+                            else a1 \ y1 \ y // store.book(0)
                         case _ => super.transform(tree)
                     }
                 }
@@ -125,13 +148,22 @@ class PathMacroSpec extends PlaySpec {
             println("new Tree2 = " + xformer.transform(expr2.tree))
             println("old Tree3 = " + expr3.tree)
             println("new Tree3 = " + xformer.transform(expr3.tree))
+            println("new Tree4 = " + xformer.transform(expr4.tree))
             
             val r1 = ${js.$.store.book(0).title}
-            println("title = " + r1.as[String])
-            r1.as[String] mustBe "Sayings of the Century"
-            val r2 = ${js.$.store.book(*(%.price > 8.95)).title}
-            println("title = " + r2.as[List[String]])
-            r2.as[List[String]] mustBe List("Sword of Honour", "Moby Dick", "The Lord of the Rings")
+//            println("title = " + r1.as[String])
+//            r1.as[String] mustBe "Sayings of the Century"
+//            val r2 = ${js.$.store.book(?(%.price)).title}
+//            DynaJson.apply(DynaJson.apply(DynaJson.apply(DynaJson.apply(JsValue.jsValueToJsLookup(js).result, "store"), "book"), JsonPath.$qmark(JpPathExpression.apply("price").$greater(JsonPath.doubleToExpression(8.95))(Reads.DoubleReads))), "title")
+            val eight = 8.3
+            val r3 = ${?(%.price.test)}
+//            val r3 = ${js.$.store.book(?(%.price > 8)).title}
+//            println("title = " + r2.as[List[String]])
+//            r2.as[List[String]] mustBe List("Sword of Honour", "Moby Dick", "The Lord of the Rings")
+//            val r3 = ${
+//                println("hello")
+//                js.$.store.book(0).title
+//            }
         }
     }
 }
